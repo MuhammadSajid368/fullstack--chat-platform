@@ -1,0 +1,110 @@
+# -----------------------------------------------------------------------------
+# Environment files
+# -----------------------------------------------------------------------------
+.env
+.env.local
+.env.ci
+.env.prod.ci
+.env.development
+.env.production
+.env.production.local
+.env.staging
+
+**/.env
+**/.env.local
+**/.env.ci
+**/.env.prod.ci
+**/.env.development
+**/.env.production
+**/.env.production.local
+**/.env.staging
+
+!/.env.production.example
+!/.env.staging.example
+!**/.env.example
+!frontend/.env.test
+
+# -----------------------------------------------------------------------------
+# Secrets / certificates
+# -----------------------------------------------------------------------------
+**/deploy/prometheus/bearer.token
+**/deploy/certs/**
+!**/deploy/certs/.gitkeep
+
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+
+# -----------------------------------------------------------------------------
+# Dependencies
+# -----------------------------------------------------------------------------
+node_modules/
+**/node_modules/
+
+.npm/
+.pnpm-store/
+.yarn/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# -----------------------------------------------------------------------------
+# Build outputs / caches
+# -----------------------------------------------------------------------------
+dist/
+build/
+coverage/
+**/dist/
+**/build/
+**/coverage/
+
+*.tsbuildinfo
+.vite/
+**/.vite/
+.vitest/
+**/.vitest/
+.nyc_output/
+.turbo/
+.next/
+.cache/
+tmp/
+temp/
+playwright-report/
+test-results/
+
+# -----------------------------------------------------------------------------
+# Logs / runtime
+# -----------------------------------------------------------------------------
+*.log
+*.out
+*.err
+*.pid
+*.seed
+*.tgz
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -----------------------------------------------------------------------------
+# Redis / local runtime state / backups
+# -----------------------------------------------------------------------------
+*.rdb
+*.aof
+backups/
+**/backups/**
+
+# -----------------------------------------------------------------------------
+# OS / editor files
+# -----------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/settings.json
+*.swp
+*.swo

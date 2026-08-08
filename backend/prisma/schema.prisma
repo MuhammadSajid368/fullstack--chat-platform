@@ -1,0 +1,621 @@
+// =============================================================================
+// Chat Platform — PostgreSQL data model (Prisma)
+// =============================================================================
+// Source of truth alignment: frontend docs/API_CONTRACT.md + src/types/chat.ts
+// No API / service implementation in this phase — schema + docs only.
+// Architecture notes live in: prisma/DATA_MODEL.md
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto]
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+/// Conversation lifecycle. Per-user mute lives on ConversationMember.muted
+/// (MUTED here is reserved for system/admin conversation-level state).
+enum ConversationStatus {
+  ACTIVE
+  ARCHIVED
+  MUTED
+}
+
+/// Aligned with frontend ApiMessageType (+ SYSTEM for server events).
+/// Frontend `reply` is modeled via replyToMessageId, not a MessageType value.
+enum MessageType {
+  TEXT
+  IMAGE
+  DOCUMENT
+  VOICE
+  VIDEO
+  LINK
+  LOCATION
+  CONTACT
+  STICKER
+  SYSTEM
+}
+
+/// Sender-visible delivery pipeline (optimistic UI → wire → devices → seen).
+/// Group “who read” detail lives in MessageRead, not only this field.
+enum MessageStatus {
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+/// Permission tier enforced by the backend (frontend gates are UX-only).
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+/// Platform-wide admin role (separate from group MemberRole).
+enum GlobalRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+/// Who may observe this user's online/lastSeen presence.
+enum PresencePrivacy {
+  EVERYONE
+  CONTACTS
+  NOBODY
+}
+
+/// User-selected presence while connected (OFFLINE is derived from devices).
+enum PresencePreferredStatus {
+  ONLINE
+  AWAY
+  INVISIBLE
+}
+
+enum NotificationType {
+  MESSAGE
+  MENTION
+  GROUP_INVITE
+  GROUP_UPDATE
+  SYSTEM
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  DISMISSED
+}
+
+enum ReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportTargetType {
+  USER
+  MESSAGE
+  CONVERSATION
+  GROUP
+}
+
+enum AuditAction {
+  USER_LOGIN
+  USER_LOGOUT
+  USER_REGISTER
+  USER_UPDATE
+  CONVERSATION_CREATE
+  CONVERSATION_UPDATE
+  CONVERSATION_ARCHIVE
+  MEMBER_ADD
+  MEMBER_REMOVE
+  MEMBER_ROLE_CHANGE
+  OWNERSHIP_TRANSFER
+  MESSAGE_SEND
+  MESSAGE_EDIT
+  MESSAGE_DELETE
+  MESSAGE_PIN
+  MESSAGE_UNPIN
+  MESSAGE_STAR
+  MESSAGE_UNSTAR
+  MESSAGE_RETRY
+  ATTACHMENT_CREATE
+  SESSION_REVOKE
+  REFRESH_TOKEN_ROTATE
+  REFRESH_TOKEN_REPLAY
+  USER_SUSPEND
+  USER_UNSUSPEND
+  USER_SOFT_DELETE
+  USER_RESTORE
+  USER_FORCE_LOGOUT
+  ADMIN_CONVERSATION_DELETE
+  ADMIN_CONVERSATION_RESTORE
+  ADMIN_CONVERSATION_ARCHIVE
+  ADMIN_GROUP_DELETE
+  ADMIN_GROUP_RESTORE
+  ADMIN_MESSAGE_DELETE
+  ADMIN_MESSAGE_RESTORE
+  REPORT_CREATE
+  REPORT_REVIEW
+  REPORT_RESOLVE
+  REPORT_DISMISS
+  OTHER
+}
+
+enum AttachmentStatus {
+  PENDING
+  READY
+  FAILED
+  DELETED
+}
+
+enum VirusScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+  SKIPPED
+  ERROR
+}
+
+// ---------------------------------------------------------------------------
+// Auth / identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String     @id @default(cuid())
+  email        String
+  passwordHash String
+  name         String     @db.VarChar(120)
+  avatarUrl    String?    @db.Text
+  phone        String?    @db.VarChar(32)
+  about        String?    @db.VarChar(500)
+  /// Platform admin role — independent of group MemberRole.
+  globalRole   GlobalRole @default(USER)
+  /// Soft-suspend (cannot authenticate while set).
+  suspendedAt  DateTime?
+  lastSeenAt   DateTime?
+  /// Presence visibility for online status + lastSeen.
+  presencePrivacy PresencePrivacy @default(EVERYONE)
+  /// Preferred status while connected (INVISIBLE suppresses ONLINE broadcasts).
+  presencePreferredStatus PresencePreferredStatus @default(ONLINE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  /// Soft-delete only. Hard DELETE of users is not a supported business operation
+  /// (messages reference users with ON DELETE RESTRICT).
+  deletedAt    DateTime?
+
+  sessions             Session[]
+  refreshTokens        RefreshToken[]
+  memberships          ConversationMember[]
+  sentMessages         Message[]            @relation("MessageSender")
+  messageReads         MessageRead[]
+  pinnedMessages       PinnedMessage[]
+  starredMessages      StarredMessage[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]           @relation("AuditActor")
+  attachments          FutureAttachment[]
+  createdConversations Conversation[]       @relation("ConversationCreator")
+  reportsFiled         Report[]             @relation("ReportReporter")
+  reportsReviewed      Report[]             @relation("ReportReviewer")
+
+  /// Email uniqueness for *active* users only (official migration):
+  /// CREATE UNIQUE INDEX users_email_active_uidx ON users (email) WHERE "deletedAt" IS NULL;
+  /// Soft-deleted emails may be reused. Hard DELETE of users is not supported.
+  @@index([email])
+  @@index([deletedAt])
+  @@index([suspendedAt])
+  @@index([globalRole])
+  @@index([lastSeenAt])
+  @@map("users")
+}
+
+/// Server-side HttpOnly cookie session (primary browser auth — aligns with frontend).
+model Session {
+  id               String    @id @default(cuid())
+  userId           String
+  /// SHA-256 (or stronger) of the opaque cookie value — never store raw cookies.
+  sessionTokenHash String    @unique
+  userAgent        String?   @db.VarChar(512)
+  ipAddress        String?   @db.VarChar(64)
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  lastSeenAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@index([userId, revokedAt])
+  @@map("sessions")
+}
+
+/// Refresh token rotation (mobile / future API clients). Linked to a Session when present.
+model RefreshToken {
+  id           String    @id @default(cuid())
+  userId       String
+  sessionId    String?
+  /// Hash of refresh token — never store plaintext.
+  tokenHash    String    @unique
+  /// Rotation family id; reuse of an old token revokes the whole family.
+  familyId     String
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, expiresAt])
+  @@index([familyId])
+  @@index([sessionId])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Conversations & membership
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id     String             @id @default(cuid())
+  type   ConversationType
+  status ConversationStatus @default(ACTIVE)
+
+  name        String? @db.VarChar(120)
+  avatarUrl   String? @db.Text
+  description String? @db.VarChar(1000)
+  inviteCode  String? @unique @db.VarChar(32)
+
+  createdById String?
+
+  /// For DIRECT chats: sorted "userIdA:userIdB" (one active DM thread per pair).
+  /// Uniqueness is a PARTIAL unique index WHERE deleted_at IS NULL
+  /// (see prisma/migrations — not a global @@unique, so soft-deleted pairs can be recreated).
+  /// CHECK: type = 'DIRECT' ⇒ direct_pair_key IS NOT NULL (same migration).
+  directPairKey String? @db.VarChar(80)
+
+  /// Denormalized inbox fields (updated in the same TX as message insert).
+  lastMessageId      String?   @unique
+  lastMessagePreview String?   @db.VarChar(280)
+  lastMessageAt      DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  createdBy      User?                @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members        ConversationMember[]
+  messages       Message[]
+  groupRoles     GroupRole[]
+  pinnedMessages PinnedMessage[]
+  notifications  Notification[]
+  attachments    FutureAttachment[]
+
+  /// lastMessageId FK is optional forward-ref; set after message insert in TX.
+  lastMessage Message? @relation("ConversationLastMessage", fields: [lastMessageId], references: [id], onDelete: SetNull)
+
+  @@index([type, status, deletedAt])
+  @@index([lastMessageAt(sort: Desc)])
+  @@index([createdById])
+  @@index([directPairKey])
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id             String     @id @default(cuid())
+  conversationId String
+  userId         String
+  role           MemberRole @default(MEMBER)
+
+  /// Optional FK to per-group role catalog (custom roles / future RBAC).
+  groupRoleId String?
+
+  /// Per-user inbox prefs (frontend: muted, pinned on conversation list).
+  muted  Boolean @default(false)
+  pinned Boolean @default(false)
+
+  /// Unread strategy: counter + watermark (see DATA_MODEL.md).
+  unreadCount       Int       @default(0)
+  lastReadMessageId String?
+  lastReadAt        DateTime?
+
+  joinedAt  DateTime  @default(now())
+  /// Leave timestamp. Active membership ⇒ leftAt IS NULL AND deletedAt IS NULL.
+  /// Lifecycle: partial unique on active rows only — leave keeps history; rejoin INSERTs a new row
+  /// (see DATA_MODEL.md § membership lifecycle). Do NOT use a full @@unique(conversationId, userId).
+  leftAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupRole       GroupRole?   @relation(fields: [groupRoleId], references: [id], onDelete: SetNull)
+  lastReadMessage Message?     @relation("MemberLastRead", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+
+  /// Active uniqueness lives in SQL migration as:
+  /// UNIQUE (conversation_id, user_id) WHERE left_at IS NULL AND deleted_at IS NULL
+  @@index([userId, pinned, lastReadAt])
+  @@index([userId, muted])
+  @@index([conversationId, role])
+  @@index([conversationId, leftAt, deletedAt])
+  @@index([conversationId, userId])
+  @@index([lastReadMessageId])
+  @@map("conversation_members")
+}
+
+/// Per-group role catalog. System rows (owner/admin/member) seeded on group create.
+/// ConversationMember.role remains the permission tier for enforcement.
+model GroupRole {
+  id             String    @id @default(cuid())
+  conversationId String
+  key            String    @db.VarChar(64)
+  displayName    String    @db.VarChar(120)
+  /// Free-form permission flags for future fine-grained RBAC.
+  permissions    Json      @default("{}")
+  isSystem       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  conversation Conversation         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  members      ConversationMember[]
+
+  @@unique([conversationId, key])
+  @@index([conversationId, deletedAt])
+  @@map("group_roles")
+}
+
+// ---------------------------------------------------------------------------
+// Messages & receipts
+// ---------------------------------------------------------------------------
+
+model Message {
+  id             String @id @default(cuid())
+  conversationId String
+  senderId       String
+
+  type    MessageType   @default(TEXT)
+  /// Sender delivery/read pipeline status (optimistic + receipts).
+  status  MessageStatus @default(SENT)
+  content String        @db.Text
+
+  /// Maintained by DB trigger for PostgreSQL FTS (GIN). App code must not write this.
+  searchVector Unsupported("tsvector")?
+
+  /// Opaque idempotency key from the client (optimistic UI / retries).
+  clientMessageId String? @db.VarChar(64)
+
+  replyToMessageId String?
+
+  /// Optional denormalized link preview / media hints (attachments are canonical).
+  linkPreview Json?
+  metadata    Json?
+
+  /// Soft delete: row retained for tombstones / sync; content may be redacted in app layer.
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+
+  replyTo Message?  @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies Message[] @relation("MessageReplies")
+
+  reads            MessageRead[]
+  pins             PinnedMessage[]
+  stars            StarredMessage[]
+  attachments      FutureAttachment[]
+  notifications    Notification[]
+  memberLastReads  ConversationMember[] @relation("MemberLastRead")
+  conversationLast Conversation?        @relation("ConversationLastMessage")
+
+  /// Composite unique enables FKs that bind (messageId, conversationId) together
+  /// (pins / attachments cannot reference a message from another conversation).
+  @@unique([id, conversationId])
+  /// Idempotent send: one clientMessageId per conversation (NULLs allowed multiple times in PG).
+  @@unique([conversationId, clientMessageId])
+  /// Primary cursor pagination key (newest → older).
+  @@index([conversationId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([conversationId, deletedAt, createdAt(sort: Desc)])
+  @@index([senderId, createdAt(sort: Desc)])
+  @@index([replyToMessageId])
+  @@index([status, createdAt])
+  @@map("messages")
+}
+
+/// Per-user read receipt (critical for GROUP; also used for DIRECT analytics).
+model MessageRead {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId, readAt(sort: Desc)])
+  @@index([messageId, readAt])
+  @@map("message_reads")
+}
+
+/// Conversation-pinned messages (ordered). Prefer this over a boolean on Message.
+/// Integrity: composite FK (messageId, conversationId) → messages(id, conversationId).
+model PinnedMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  messageId      String
+  pinnedById     String
+  position       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      Message      @relation(fields: [messageId, conversationId], references: [id, conversationId], onDelete: Cascade)
+  pinnedBy     User         @relation(fields: [pinnedById], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, messageId])
+  @@index([conversationId, position])
+  @@index([messageId])
+  @@map("pinned_messages")
+}
+
+/// Per-user stars (WhatsApp-style — starring is user-private).
+model StarredMessage {
+  id        String    @id @default(cuid())
+  messageId String
+  userId    String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, deletedAt])
+  @@map("starred_messages")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications, audit, future uploads
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id             String             @id @default(cuid())
+  userId         String
+  type           NotificationType
+  status         NotificationStatus @default(UNREAD)
+  title          String             @db.VarChar(200)
+  body           String             @db.VarChar(1000)
+  conversationId String?
+  messageId      String?
+  payload        Json?
+  readAt         DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  deletedAt      DateTime?
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  message      Message?      @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt(sort: Desc)])
+  @@index([userId, deletedAt])
+  @@index([conversationId])
+  @@index([messageId])
+  @@map("notifications")
+}
+
+/// Append-oriented audit trail. Prefer insert-only; updatedAt exists for schema uniformity.
+model AuditLog {
+  id         String      @id @default(cuid())
+  actorId    String?
+  action     AuditAction
+  entityType String      @db.VarChar(64)
+  entityId   String?     @db.VarChar(64)
+  metadata   Json?
+  ipAddress  String?     @db.VarChar(64)
+  userAgent  String?     @db.VarChar(512)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+/// Moderation reports — users/content flagged for admin review.
+model Report {
+  id         String           @id @default(cuid())
+  reporterId String
+  targetType ReportTargetType
+  targetId   String           @db.VarChar(64)
+  reason     String           @db.VarChar(200)
+  details    String?          @db.VarChar(2000)
+  status     ReportStatus     @default(OPEN)
+  reviewerId String?
+  resolution String?          @db.VarChar(2000)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  deletedAt  DateTime?
+
+  reporter User  @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("ReportReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([targetType, targetId])
+  @@index([reporterId, createdAt(sort: Desc)])
+  @@index([reviewerId])
+  @@map("reports")
+}
+
+/// File uploads — store object-storage keys + metadata, not blobs in Postgres.
+/// Integrity: when messageId is set, conversationId must match that message
+/// (composite FK + CHECK in migration).
+model FutureAttachment {
+  id             String           @id @default(cuid())
+  conversationId String?
+  messageId      String?
+  uploaderId     String
+  status         AttachmentStatus @default(PENDING)
+  virusScanStatus VirusScanStatus @default(PENDING)
+
+  /// Object storage key / path (S3, GCS, etc.).
+  storageKey String  @db.VarChar(512)
+  bucket     String? @db.VarChar(128)
+  mimeType   String  @db.VarChar(128)
+  fileName   String  @db.VarChar(255)
+  byteSize   BigInt  @default(0)
+  checksum   String? @db.VarChar(128)
+  width      Int?
+  height     Int?
+  durationMs Int?
+  /// Object-storage key for a generated thumbnail (video/image).
+  thumbnailKey String? @db.VarChar(512)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  message      Message?      @relation(fields: [messageId, conversationId], references: [id, conversationId], onDelete: SetNull)
+  uploader     User          @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+
+  @@index([messageId])
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([uploaderId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@index([status, virusScanStatus])
+  @@index([storageKey])
+  @@map("attachments")
+}

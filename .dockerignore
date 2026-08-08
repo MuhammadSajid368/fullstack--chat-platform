@@ -1,0 +1,14 @@
+# Root ignore for compose build contexts if ever used from repo root
+**/.git
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.production.example
+!**/.env.staging.example
+**/backups
+**/deploy/prometheus/bearer.token
+**/deploy/certs/*.pem

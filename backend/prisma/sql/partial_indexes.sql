@@ -1,0 +1,7 @@
+-- DEPRECATED SIDECAR
+--
+-- All production-critical integrity rules now live in the official Prisma migration:
+--   prisma/migrations/20260714120000_init_chat_platform/migration.sql
+--
+-- Do NOT apply this file separately. It is kept only as a pointer for older docs/links.
+-- Apply integrity exclusively via: npx prisma migrate deploy  (or migrate dev)

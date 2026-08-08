@@ -1,0 +1,55 @@
+groups:
+  - name: chat-backend
+    rules:
+      - alert: ChatBackendDown
+        expr: up{job="chat-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Chat backend scrape target is down"
+          description: "Prometheus cannot scrape chat-backend for more than 2 minutes."
+
+      - alert: ChatBackendHighErrorRate
+        expr: |
+          sum(rate(chat_backend_http_request_errors_total[5m]))
+            /
+          clamp_min(sum(rate(chat_backend_http_requests_total[5m])), 0.001)
+            > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated HTTP error rate on chat backend"
+          description: "HTTP error ratio > 5% for 5 minutes."
+
+      - alert: ChatBackendHighLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(chat_backend_http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 HTTP latency"
+          description: "p95 request latency > 1s for 10 minutes."
+
+      - alert: ChatPostgresUnhealthy
+        expr: chat_backend_health_component_status{component="postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Postgres health check failing"
+          description: "Backend reports postgres component unhealthy."
+
+      - alert: ChatRedisUnhealthy
+        expr: chat_backend_health_component_status{component="redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis health check failing"
+          description: "Backend reports redis component unhealthy."

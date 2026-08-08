@@ -1,0 +1,3 @@
+# Placeholder — replace with the same value as METRICS_TOKEN before starting prod.
+# Or run:  printf '%s' "$METRICS_TOKEN" > deploy/prometheus/bearer.token
+changeme-metrics-token

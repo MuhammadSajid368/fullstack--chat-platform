@@ -1,0 +1,1 @@
+# Keep directory for TLS mounts; place fullchain.pem + privkey.pem here in prod.
