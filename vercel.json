@@ -3,7 +3,8 @@
   "services": {
     "frontend": {
       "root": "frontend/",
-      "framework": "vite"
+      "framework": "vite",
+      "outputDirectory": "build"
     },
     "backend": {
       "root": "backend/",

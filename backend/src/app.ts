@@ -5,6 +5,8 @@ import type { AppConfig } from "@config/index.js";
 import type { Container } from "@container/container.js";
 import { TOKENS } from "@shared/constants/tokens.js";
 import type { IHealthService } from "@shared/interfaces/IHealthService.js";
+// Side-effect: ensure Express Request augmentation is in the typecheck graph (Vercel).
+import "@common/types/express.js";
 import {
   applySecurityMiddleware,
   createErrorHandler,
