@@ -25,7 +25,10 @@ const MainLayout = () => {
           position: "sticky",
           top: 0,
           height: "100vh",
+          maxHeight: "100dvh",
+          minHeight: 0,
           alignSelf: "start",
+          overflow: "hidden",
         }}
       >
         <AuthBrandPanel />
