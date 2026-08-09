@@ -25,7 +25,22 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
   COOKIE_SAME_SITE: z.enum(["strict", "lax", "none"]).default("lax"),
 
-  CORS_ORIGIN: z.string().min(1),
+  /**
+   * Browser Origin(s). Comma-separated allowed.
+   * Must match the scheme+host exactly (no path, no trailing slash),
+   * e.g. `https://app.vercel.app` or `https://a.vercel.app,https://b.vercel.app`.
+   */
+  CORS_ORIGIN: z
+    .string()
+    .min(1)
+    .transform((raw) =>
+      raw
+        .split(",")
+        .map((part) => part.trim().replace(/\/+$/, ""))
+        .filter(Boolean)
+        .join(",")
+    )
+    .refine((v) => v.length > 0, "CORS_ORIGIN must list at least one origin"),
 
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(600),

@@ -30,7 +30,7 @@ export type AppConfig = DeepReadonly<{
     secure: boolean;
     sameSite: "strict" | "lax" | "none";
   };
-  corsOrigin: string;
+  corsOrigin: string | string[];
   rateLimit: {
     windowMs: number;
     max: number;
@@ -71,6 +71,21 @@ function parseKeyValueList(input: string | undefined): Record<string, string> {
     }
   }
   return out;
+}
+
+/** One origin string, or a list when CORS_ORIGIN is comma-separated. */
+function parseCorsOrigins(raw: string): string | string[] {
+  const origins = raw
+    .split(",")
+    .map((part) => part.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+  if (origins.length === 0) {
+    return raw.replace(/\/+$/, "");
+  }
+  if (origins.length === 1) {
+    return origins[0]!;
+  }
+  return origins;
 }
 
 let cached: AppConfig | null = null;
@@ -145,7 +160,7 @@ export function loadConfig(raw?: NodeJS.ProcessEnv): AppConfig {
       secure: env.COOKIE_SECURE,
       sameSite: env.COOKIE_SAME_SITE,
     },
-    corsOrigin: env.CORS_ORIGIN,
+    corsOrigin: parseCorsOrigins(env.CORS_ORIGIN),
     rateLimit: {
       windowMs: env.RATE_LIMIT_WINDOW_MS,
       max: env.RATE_LIMIT_MAX,
