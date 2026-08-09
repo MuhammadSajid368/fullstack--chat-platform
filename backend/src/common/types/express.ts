@@ -14,8 +14,12 @@ export type RequestAdminActor = {
 
 /**
  * Augment Express Request so controllers/middleware can use requestId, user, etc.
- * Lives in a .ts module (not only .d.ts) so Vercel’s backend typecheck includes it.
+ * Lives in a .ts module so Vercel’s backend typecheck includes it.
+ *
+ * Express documents `namespace Express` as the supported merge point; module
+ * augmentation of express-serve-static-core conflicts with pino-http's `log`.
  */
+/* eslint-disable @typescript-eslint/no-namespace -- Express Request merge API */
 declare global {
   namespace Express {
     interface Request {
@@ -29,6 +33,7 @@ declare global {
     }
   }
 }
+/* eslint-enable @typescript-eslint/no-namespace */
 
 export type AuthedRequest = Request & {
   user: AuthenticatedUser;
