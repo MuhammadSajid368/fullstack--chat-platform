@@ -5,32 +5,43 @@ import NewPasswordForm from "../../sections/auth/NewPasswordForm";
 
 const NewPassword = () => {
   return (
-    <>
-      <Stack spacing={2} sx={{ mb: 2, position: "relative" }}>
-        <Typography variant="h3" paragraph>
-          Reset Password
-        </Typography>
-        <Typography>Please enter your new password below.</Typography>
-        {/* NewPaswordForm */}
-        <NewPasswordForm />
-
-        <Link
-          component={RouterLink}
-          to="/auth/login"
-          color="inherit"
-          variant="subtitle2"
+    <Stack spacing={3}>
+      <Stack spacing={1}>
+        <Typography
+          component="h1"
           sx={{
-            mt: 3,
-            mx: "auto",
-            alignItems: "center",
-            display: "inline-flex",
+            fontFamily: '"Sora", "Manrope", sans-serif',
+            fontWeight: 700,
+            fontSize: { xs: 26, sm: 30 },
+            letterSpacing: "-0.03em",
+            lineHeight: 1.2,
           }}
         >
-          <CaretLeft />
-          Return to signin
-        </Link>
+          Set a new password
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+          Choose a strong password you haven&apos;t used before.
+        </Typography>
       </Stack>
-    </>
+      <NewPasswordForm />
+      <Link
+        component={RouterLink}
+        to="/auth/login"
+        variant="subtitle2"
+        underline="hover"
+        sx={{
+          mx: "auto",
+          alignItems: "center",
+          display: "inline-flex",
+          gap: 0.5,
+          fontWeight: 700,
+          color: "primary.main",
+        }}
+      >
+        <CaretLeft size={16} weight="bold" />
+        Back to sign in
+      </Link>
+    </Stack>
   );
 };
 
