@@ -11,6 +11,8 @@ import {
   InputAdornment,
   Stack,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
+import type { SxProps, Theme } from "@mui/material/styles";
 import RHFTextField from "../../components/hook-form/RHFTextField";
 import { Eye, EyeSlash } from "phosphor-react";
 import { useNavigate } from "react-router-dom";
@@ -84,26 +86,57 @@ const RegisterForm = () => {
     });
   };
 
+  const fieldSx: SxProps<Theme> = {
+    "& .MuiOutlinedInput-root": {
+      borderRadius: 1.5,
+      bgcolor: (theme) =>
+        theme.palette.mode === "light" ? "common.white" : "background.paper",
+      transition: "box-shadow 0.2s ease, border-color 0.2s ease",
+      "&.Mui-focused": {
+        boxShadow: (theme) =>
+          `0 0 0 3px ${alpha(theme.palette.primary.main, 0.16)}`,
+      },
+    },
+  };
+
   return (
     <FormProvider
       methods={methods as unknown as UseFormReturn<FieldValues>}
       onSubmit={handleSubmit(onSubmit)}
     >
-      <Stack spacing={3}>
+      <Stack spacing={2.5}>
         {(!!errors.afterSubmit || authError) && (
-          <Alert severity="error">
+          <Alert severity="error" sx={{ borderRadius: 1.5 }}>
             {errors.afterSubmit?.message || authError}
           </Alert>
         )}
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <RHFTextField name="firstName" label="First Name" />
-          <RHFTextField name="lastName" label="Last Name" />
+          <RHFTextField
+            name="firstName"
+            label="First name"
+            autoComplete="given-name"
+            sx={fieldSx}
+          />
+          <RHFTextField
+            name="lastName"
+            label="Last name"
+            autoComplete="family-name"
+            sx={fieldSx}
+          />
         </Stack>
-        <RHFTextField name="email" label="Email" />
+        <RHFTextField
+          name="email"
+          label="Email"
+          autoComplete="email"
+          sx={fieldSx}
+        />
         <RHFTextField
           name="password"
           label="Password"
           type={showPassword ? "text" : "password"}
+          autoComplete="new-password"
+          helperText="At least 8 characters"
+          sx={fieldSx}
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
@@ -112,8 +145,9 @@ const RegisterForm = () => {
                   onClick={() => {
                     setShowPassword(!showPassword);
                   }}
+                  edge="end"
                 >
-                  {showPassword ? <Eye /> : <EyeSlash />}
+                  {showPassword ? <Eye size={20} /> : <EyeSlash size={20} />}
                 </IconButton>
               </InputAdornment>
             ),
@@ -121,23 +155,33 @@ const RegisterForm = () => {
         />
         <Button
           fullWidth
-          color="inherit"
+          color="primary"
           size="large"
           type="submit"
           variant="contained"
           disabled={isSubmitting}
           sx={{
-            bgcolor: "text.primary",
-            color: (theme) =>
-              theme.palette.mode === "light" ? "common.white" : "grey.800",
+            mt: 0.5,
+            py: 1.35,
+            borderRadius: 1.5,
+            fontWeight: 700,
+            fontSize: 15,
+            letterSpacing: "-0.01em",
+            textTransform: "none",
+            boxShadow: (theme) =>
+              `0 8px 20px ${theme.palette.primary.main}33`,
+            transition: "transform 0.15s ease, box-shadow 0.15s ease",
             "&:hover": {
-              bgcolor: "text.primary",
-              color: (theme) =>
-                theme.palette.mode === "light" ? "common.white" : "grey.800",
+              boxShadow: (theme) =>
+                `0 10px 24px ${theme.palette.primary.main}44`,
+              transform: "translateY(-1px)",
+            },
+            "&:active": {
+              transform: "translateY(0)",
             },
           }}
         >
-          Create Account
+          {isSubmitting ? "Creating account…" : "Create account"}
         </Button>
       </Stack>
     </FormProvider>

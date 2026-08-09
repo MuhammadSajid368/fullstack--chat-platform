@@ -12,6 +12,8 @@ import {
   Link,
   Stack,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
+import type { SxProps, Theme } from "@mui/material/styles";
 import { Eye, EyeSlash } from "phosphor-react";
 import FormProvider from "../../components/hook-form/FormProvider";
 import RHFTextField from "../../components/hook-form/RHFTextField";
@@ -99,33 +101,47 @@ const LoginForm = () => {
     });
   };
 
+  const fieldSx: SxProps<Theme> = {
+    "& .MuiOutlinedInput-root": {
+      borderRadius: 1.5,
+      bgcolor: (theme) =>
+        theme.palette.mode === "light" ? "common.white" : "background.paper",
+      transition: "box-shadow 0.2s ease, border-color 0.2s ease",
+      "&.Mui-focused": {
+        boxShadow: (theme) =>
+          `0 0 0 3px ${alpha(theme.palette.primary.main, 0.16)}`,
+      },
+    },
+  };
+
   return (
     <FormProvider
       methods={methods as unknown as UseFormReturn<FieldValues>}
       onSubmit={handleSubmit(onSubmit)}
     >
-      <Stack spacing={3}>
+      <Stack spacing={2.5}>
         {sessionExpiredNotice && (
-          <Alert severity="warning" role="alert">
+          <Alert severity="warning" role="alert" sx={{ borderRadius: 1.5 }}>
             {sessionExpiredNotice}
           </Alert>
         )}
         {isDevEnvironment && isMockMode() && (
-          <Alert severity="info" role="note">
+          <Alert severity="info" role="note" sx={{ borderRadius: 1.5 }}>
             Mock mode is active. Development demo credentials are documented in
             docs/DEV_AUTH.md.
           </Alert>
         )}
         {errors.root && (
-          <Alert severity="error" role="alert">
+          <Alert severity="error" role="alert" sx={{ borderRadius: 1.5 }}>
             {errors.root.message}
           </Alert>
         )}
         <RHFTextField
           name="email"
-          label="Enter Email"
+          label="Email"
           autoComplete="email"
           inputProps={{ "aria-label": "Email address" }}
+          sx={fieldSx}
         />
         <RHFTextField
           name="password"
@@ -133,52 +149,64 @@ const LoginForm = () => {
           type={showPassword ? "text" : "password"}
           autoComplete="current-password"
           inputProps={{ "aria-label": "Password" }}
+          sx={fieldSx}
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
                 <IconButton
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
+                  edge="end"
                 >
-                  {showPassword ? <Eye /> : <EyeSlash />}
+                  {showPassword ? <Eye size={20} /> : <EyeSlash size={20} />}
                 </IconButton>
               </InputAdornment>
             ),
           }}
         />
-      </Stack>
-      <Stack alignItems="flex-end" sx={{ my: 2 }}>
-        <Link
-          component={RouterLink}
-          to="/auth/reset-password"
-          variant="body2"
-          color="inherit"
-          underline="always"
+        <Stack alignItems="flex-end" sx={{ mt: -0.5 }}>
+          <Link
+            component={RouterLink}
+            to="/auth/reset-password"
+            variant="body2"
+            underline="hover"
+            sx={{ fontWeight: 600, color: "text.secondary" }}
+          >
+            Forgot password?
+          </Link>
+        </Stack>
+        <Button
+          fullWidth
+          color="primary"
+          size="large"
+          type="submit"
+          variant="contained"
+          disabled={isSubmitting}
+          aria-label="Sign in"
+          sx={{
+            mt: 0.5,
+            py: 1.35,
+            borderRadius: 1.5,
+            fontWeight: 700,
+            fontSize: 15,
+            letterSpacing: "-0.01em",
+            textTransform: "none",
+            boxShadow: (theme) =>
+              `0 8px 20px ${theme.palette.primary.main}33`,
+            transition: "transform 0.15s ease, box-shadow 0.15s ease",
+            "&:hover": {
+              boxShadow: (theme) =>
+                `0 10px 24px ${theme.palette.primary.main}44`,
+              transform: "translateY(-1px)",
+            },
+            "&:active": {
+              transform: "translateY(0)",
+            },
+          }}
         >
-          Forgot password?
-        </Link>
+          {isSubmitting ? "Signing in…" : "Sign in"}
+        </Button>
       </Stack>
-      <Button
-        fullWidth
-        color="inherit"
-        size="large"
-        type="submit"
-        variant="contained"
-        disabled={isSubmitting}
-        aria-label="Sign in"
-        sx={{
-          bgcolor: "text.primary",
-          color: (theme) =>
-            theme.palette.mode === "light" ? "common.white" : "grey.800",
-          "&:hover": {
-            bgcolor: "text.primary",
-            color: (theme) =>
-              theme.palette.mode === "light" ? "common.white" : "grey.800",
-          },
-        }}
-      >
-        Login
-      </Button>
     </FormProvider>
   );
 };
