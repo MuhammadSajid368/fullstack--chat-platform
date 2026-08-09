@@ -12,6 +12,10 @@ export type RequestAdminActor = {
   globalRole: "ADMIN" | "SUPER_ADMIN";
 };
 
+/**
+ * Augment Express Request so controllers/middleware can use requestId, user, etc.
+ * Lives in a .ts module (not only .d.ts) so Vercel’s backend typecheck includes it.
+ */
 declare global {
   namespace Express {
     interface Request {
