@@ -1,8 +1,10 @@
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+// Required so Vercel Express detection picks this entry (not a factory module).
+import express from "express";
 import type { Express } from "express";
-import type { Server } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { PrismaClient } from "@prisma/client";
 import type { Redis } from "ioredis";
 import type { Logger } from "pino";
@@ -18,7 +20,7 @@ import {
 } from "@database/index.js";
 import { createContainer } from "@container/index.js";
 import { TOKENS } from "@shared/constants/tokens.js";
-import { createApp } from "./app.js";
+import { createApp } from "./createApp.js";
 import {
   initWebSocketGateway,
   type WebSocketGatewayHandle,
@@ -46,6 +48,14 @@ import {
 import type { QueueHealthProvider } from "@jobs/index.js";
 import type { SocketHealthProvider } from "@observability/health/index.js";
 
+// Keep a reference so tree-shakers / detectors see an express import side-effect.
+void express;
+
+export type BootstrapOptions = {
+  /** When false, skips server.listen (Vercel invokes the default export). Default true. */
+  listen?: boolean;
+};
+
 export type BootstrappedServer = {
   app: Express;
   server: Server;
@@ -58,7 +68,26 @@ export type BootstrappedServer = {
   shutdown: (signal?: string) => Promise<void>;
 };
 
-export async function bootstrap(): Promise<BootstrappedServer> {
+let bootPromise: Promise<BootstrappedServer> | null = null;
+
+export async function bootstrap(
+  options: BootstrapOptions = {}
+): Promise<BootstrappedServer> {
+  if (bootPromise) {
+    return bootPromise;
+  }
+
+  bootPromise = runBootstrap(options).catch((err) => {
+    bootPromise = null;
+    throw err;
+  });
+  return bootPromise;
+}
+
+async function runBootstrap(
+  options: BootstrapOptions
+): Promise<BootstrappedServer> {
+  const shouldListen = options.listen ?? !process.env.VERCEL;
   const config = loadConfig();
   const logger = createLogger(config);
 
@@ -217,34 +246,41 @@ export async function bootstrap(): Promise<BootstrappedServer> {
     }
   };
 
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(config.port, config.host, () => {
-      logger.info(
-        { host: config.host, port: config.port, prefix: config.apiPrefix },
-        "HTTP server listening"
-      );
-      resolve();
+  if (shouldListen) {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(config.port, config.host, () => {
+        logger.info(
+          { host: config.host, port: config.port, prefix: config.apiPrefix },
+          "HTTP server listening"
+        );
+        resolve();
+      });
     });
-  });
+
+    process.on("SIGTERM", () => {
+      void shutdown("SIGTERM");
+    });
+    process.on("SIGINT", () => {
+      void shutdown("SIGINT");
+    });
+
+    process.on("unhandledRejection", (reason) => {
+      logger.error({ reason }, "Unhandled promise rejection");
+    });
+
+    process.on("uncaughtException", (err) => {
+      logger.fatal({ err }, "Uncaught exception");
+      void shutdown("uncaughtException");
+    });
+  } else {
+    logger.info(
+      { prefix: config.apiPrefix },
+      "HTTP app ready (serverless / no listen)"
+    );
+  }
 
   observability.health.markStartupComplete();
-
-  process.on("SIGTERM", () => {
-    void shutdown("SIGTERM");
-  });
-  process.on("SIGINT", () => {
-    void shutdown("SIGINT");
-  });
-
-  process.on("unhandledRejection", (reason) => {
-    logger.error({ reason }, "Unhandled promise rejection");
-  });
-
-  process.on("uncaughtException", (err) => {
-    logger.fatal({ err }, "Uncaught exception");
-    void shutdown("uncaughtException");
-  });
 
   return {
     app,
@@ -268,8 +304,30 @@ function isExecutedAsMain(): boolean {
   return path.resolve(entry) === path.resolve(current);
 }
 
+/**
+ * Vercel Express entry: default export must be a function (request handler)
+ * or a Node http.Server. Lazy-bootstraps on first request.
+ */
+export default function vercelHandler(
+  req: IncomingMessage,
+  res: ServerResponse
+): void {
+  void bootstrap({ listen: false })
+    .then(({ app: expressApp }) => {
+      expressApp(req, res);
+    })
+    .catch((err) => {
+      console.error("Failed to bootstrap backend", err);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.setHeader("content-type", "application/json; charset=utf-8");
+        res.end(JSON.stringify({ error: "Server failed to start" }));
+      }
+    });
+}
+
 if (isExecutedAsMain()) {
-  void bootstrap().catch((err) => {
+  void bootstrap({ listen: true }).catch((err) => {
     console.error("Failed to start server", err);
     process.exit(1);
   });
