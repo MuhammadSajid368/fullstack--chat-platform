@@ -25,20 +25,16 @@ const highlights = [
 
 /**
  * Left-hand brand panel for auth screens (desktop / large tablets).
+ * Content is vertically centered as one block so leftover space is balanced.
+ * Scrolls only when the block is taller than the viewport.
  */
 export default function AuthBrandPanel() {
   return (
     <Box
       sx={{
         position: "relative",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
         height: "100%",
-        minHeight: { md: "100vh" },
-        px: { md: 5, lg: 7 },
-        py: { md: 5, lg: 6 },
+        minHeight: 0,
         color: "#F4F7FB",
         background: `
           radial-gradient(ellipse 90% 70% at 10% 0%, ${alpha("#3D8BFF", 0.35)} 0%, transparent 55%),
@@ -47,7 +43,6 @@ export default function AuthBrandPanel() {
         `,
       }}
     >
-      {/* Soft grid atmosphere */}
       <Box
         aria-hidden
         sx={{
@@ -65,115 +60,147 @@ export default function AuthBrandPanel() {
         }}
       />
 
-      <Stack spacing={2.5} sx={{ position: "relative", zIndex: 1 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <Box
-            component="img"
-            src={logo}
-            alt=""
-            sx={{
-              width: 44,
-              height: 44,
-              borderRadius: 1.5,
-              objectFit: "cover",
-              boxShadow: `0 8px 24px ${alpha("#000", 0.35)}`,
-            }}
-          />
-          <Typography
-            component="span"
-            sx={{
-              fontFamily: '"Sora", "Manrope", sans-serif',
-              fontWeight: 700,
-              fontSize: 22,
-              letterSpacing: "-0.03em",
-              lineHeight: 1.2,
-            }}
-          >
-            {APP_NAME}
-          </Typography>
-        </Stack>
-
-        <Box sx={{ maxWidth: 420, pt: { md: 6, lg: 10 } }}>
-          <Typography
-            component="h1"
-            sx={{
-              fontFamily: '"Sora", "Manrope", sans-serif',
-              fontWeight: 700,
-              fontSize: { md: 36, lg: 42 },
-              lineHeight: 1.15,
-              letterSpacing: "-0.035em",
-              mb: 2,
-            }}
-          >
-            Conversations that feel close—wherever you are
-          </Typography>
-          <Typography
-            sx={{
-              color: alpha("#F4F7FB", 0.78),
-              fontSize: 16,
-              lineHeight: 1.65,
-              maxWidth: 380,
-            }}
-          >
-            Sign in to continue messaging, join groups, and stay online with
-            your team in one focused workspace.
-          </Typography>
-        </Box>
-      </Stack>
-
-      <Stack spacing={2.5} sx={{ position: "relative", zIndex: 1, mt: 6 }}>
-        {highlights.map(({ icon: Icon, title, body }) => (
-          <Stack
-            key={title}
-            direction="row"
-            spacing={2}
-            sx={{
-              p: 2,
-              borderRadius: 2,
-              bgcolor: alpha("#fff", 0.06),
-              border: `1px solid ${alpha("#fff", 0.08)}`,
-              backdropFilter: "blur(8px)",
-              transition: "transform 0.25s ease, background-color 0.25s ease",
-              "&:hover": {
-                transform: "translateY(-2px)",
-                bgcolor: alpha("#fff", 0.09),
-              },
-            }}
-          >
+      <Box
+        sx={{
+          position: "relative",
+          zIndex: 1,
+          height: "100%",
+          minHeight: 0,
+          overflowY: "auto",
+          overflowX: "hidden",
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch",
+          px: { md: 4, lg: 6 },
+          py: { md: 4, lg: 5 },
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          scrollbarWidth: "thin",
+          scrollbarColor: `${alpha("#fff", 0.25)} transparent`,
+          "&::-webkit-scrollbar": { width: 8 },
+          "&::-webkit-scrollbar-thumb": {
+            borderRadius: 8,
+            backgroundColor: alpha("#fff", 0.22),
+          },
+          "&::-webkit-scrollbar-track": { backgroundColor: "transparent" },
+        }}
+      >
+        {/* Single clustered block — no large empty region between sections */}
+        <Stack spacing={{ md: 3, lg: 3.5 }} sx={{ maxWidth: 440, width: "100%" }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
             <Box
+              component="img"
+              src={logo}
+              alt=""
               sx={{
                 width: 40,
                 height: 40,
-                flexShrink: 0,
                 borderRadius: 1.5,
-                display: "grid",
-                placeItems: "center",
-                bgcolor: alpha("#5BA8FF", 0.18),
-                color: "#9FD0FF",
+                objectFit: "cover",
+                boxShadow: `0 8px 24px ${alpha("#000", 0.35)}`,
+              }}
+            />
+            <Typography
+              component="span"
+              sx={{
+                fontFamily: '"Sora", "Manrope", sans-serif',
+                fontWeight: 700,
+                fontSize: 20,
+                letterSpacing: "-0.03em",
+                lineHeight: 1.2,
               }}
             >
-              <Icon size={22} weight="duotone" />
-            </Box>
-            <Box>
-              <Typography
+              {APP_NAME}
+            </Typography>
+          </Stack>
+
+          <Box>
+            <Typography
+              component="h1"
+              sx={{
+                fontFamily: '"Sora", "Manrope", sans-serif',
+                fontWeight: 700,
+                fontSize: { md: 28, lg: 34 },
+                lineHeight: 1.2,
+                letterSpacing: "-0.035em",
+                mb: 1.25,
+              }}
+            >
+              Conversations that feel close—wherever you are
+            </Typography>
+            <Typography
+              sx={{
+                color: alpha("#F4F7FB", 0.78),
+                fontSize: { md: 14, lg: 15 },
+                lineHeight: 1.6,
+                maxWidth: 380,
+              }}
+            >
+              Sign in to continue messaging, join groups, and stay online with
+              your team in one focused workspace.
+            </Typography>
+          </Box>
+
+          <Stack spacing={1.5}>
+            {highlights.map(({ icon: Icon, title, body }) => (
+              <Stack
+                key={title}
+                direction="row"
+                spacing={1.75}
                 sx={{
-                  fontWeight: 700,
-                  fontSize: 14,
-                  mb: 0.35,
-                  letterSpacing: "-0.01em",
+                  p: { md: 1.5, lg: 1.75 },
+                  borderRadius: 2,
+                  bgcolor: alpha("#fff", 0.06),
+                  border: `1px solid ${alpha("#fff", 0.08)}`,
+                  backdropFilter: "blur(8px)",
+                  transition:
+                    "transform 0.25s ease, background-color 0.25s ease",
+                  "&:hover": {
+                    transform: "translateY(-1px)",
+                    bgcolor: alpha("#fff", 0.09),
+                  },
                 }}
               >
-                {title}
-              </Typography>
-              <Typography
-                sx={{ color: alpha("#F4F7FB", 0.7), fontSize: 13, lineHeight: 1.5 }}
-              >
-                {body}
-              </Typography>
-            </Box>
+                <Box
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    flexShrink: 0,
+                    borderRadius: 1.25,
+                    display: "grid",
+                    placeItems: "center",
+                    bgcolor: alpha("#5BA8FF", 0.18),
+                    color: "#9FD0FF",
+                  }}
+                >
+                  <Icon size={20} weight="duotone" />
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: 13.5,
+                      mb: 0.25,
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    {title}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      color: alpha("#F4F7FB", 0.7),
+                      fontSize: 12.5,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {body}
+                  </Typography>
+                </Box>
+              </Stack>
+            ))}
           </Stack>
-        ))}
-      </Stack>
+        </Stack>
+      </Box>
     </Box>
   );
 }
