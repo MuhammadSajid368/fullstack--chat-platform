@@ -28,6 +28,10 @@
       "destination": { "service": "backend" }
     },
     {
+      "source": "/socket.io",
+      "destination": { "service": "backend" }
+    },
+    {
       "source": "/socket.io/(.*)",
       "destination": { "service": "backend" }
     },
