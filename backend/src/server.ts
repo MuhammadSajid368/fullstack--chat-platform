@@ -305,16 +305,20 @@ function isExecutedAsMain(): boolean {
 }
 
 /**
- * Vercel Express entry: default export must be a function (request handler)
- * or a Node http.Server. Lazy-bootstraps on first request.
+ * Vercel entry: default export must be a request handler or Node server.
+ *
+ * Socket.IO is bound to the Node `http.Server`, not the Express `app`.
+ * Invoking only Express means `/socket.io/*` hits the 404 handler and
+ * realtime never connects (no chat / presence fan-out to other users).
+ * Prefer the HTTP server so Engine.IO + Express share the same request path.
  */
 export default function vercelHandler(
   req: IncomingMessage,
   res: ServerResponse
 ): void {
   void bootstrap({ listen: false })
-    .then(({ app: expressApp }) => {
-      expressApp(req, res);
+    .then(({ server }) => {
+      server.emit("request", req, res);
     })
     .catch((err) => {
       console.error("Failed to bootstrap backend", err);
