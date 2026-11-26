@@ -16,8 +16,7 @@
       "root": "backend/",
       "framework": "express",
       "entrypoint": "src/server.ts",
-      "installCommand": "npm ci",
-      "buildCommand": "npx prisma generate && npm run build"
+      "installCommand": "npm ci && npx prisma generate"
     }
   },
   "rewrites": [
